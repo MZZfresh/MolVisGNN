@@ -16,7 +16,7 @@ from config import device
 # mirna_1d_feature = load_mirna_features('graph/data/kmer_features.csv',device=device)
 
 def get_drug_data(gpu_1d):
-    df = pd.read_csv('graph/data/drug_mapping.csv')
+    df = pd.read_csv('drug_mapping.csv')
     drug_1d_feature = []
     for drug_name in df.iloc[:, 0]:
         drug_feature = gpu_1d[drug_name].to(device)
@@ -26,7 +26,7 @@ def get_drug_data(gpu_1d):
     return drug_1d_feature
 
 def get_mirna_data(mirna_1d_feature):
-    df = pd.read_csv('graph/data/ncRNA_mapping.csv')
+    df = pd.read_csv('ncRNA_mapping.csv')
     mirna_feature_1d = []
     for mirna_name in df.iloc[:, 0]:
         mirna_id = get_mirna_id(mirna_name)
@@ -50,7 +50,7 @@ def get_graph(gpu_1d, mirna_1d_feature):
 
     drug_feature = F.adaptive_avg_pool1d(drug_feature.unsqueeze(0), 382).squeeze(0)
     
-    edge = pd.read_csv('graph/data/5555555edge_index.csv')
+    edge = pd.read_csv('edge_index.csv')
     
 
     graph = HeteroData()

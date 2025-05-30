@@ -224,6 +224,35 @@ class mlp_pre(torch.nn.Module):
 
         return x
 
+class Directional3DProcessor(nn.Module):
+    def __init__(self, in_channels, out_channels):
+        super(Directional3DProcessor, self).__init__()
+
+        self.conv_fr = nn.Sequential(
+            nn.Conv3d(in_channels, out_channels, kernel_size=3, padding=1),
+            nn.ReLU(inplace=True)
+        )
+        self.conv_bb = nn.Sequential(
+            nn.Conv3d(in_channels, out_channels, kernel_size=3, padding=1),
+            nn.ReLU(inplace=True)
+        )
+        self.conv_tl = nn.Sequential(
+            nn.Conv3d(in_channels, out_channels, kernel_size=3, padding=1),
+            nn.ReLU(inplace=True)
+        )
+
+    def forward(self, encoded_3d):  # [B, 128, 6, 32, 32]
+        fr = encoded_3d[:, :, 0:2]  # [B, 128, 2, 32, 32]
+        bb = encoded_3d[:, :, 2:4]
+        tl = encoded_3d[:, :, 4:6]
+
+        fr_out = self.conv_fr(fr)
+        bb_out = self.conv_bb(bb)
+        tl_out = self.conv_tl(tl)
+
+
+        combined = torch.cat([fr_out, bb_out, tl_out], dim=2) 
+        return combined  
 
     
 class MolVisGNN(nn.Module):
@@ -252,6 +281,7 @@ class MolVisGNN(nn.Module):
         self.nor3 = torch.nn.BatchNorm1d(128)
         self.resnet = Conv1dNetwork()
         self.relu = torch.nn.LeakyReLU(0.5)
+        self.sp = Directional3DProcessor(128,64)
         self.gate = gate()
         self.mlp_pre = mlp_pre(64,32,16,1,1,1)
 
@@ -261,7 +291,7 @@ class MolVisGNN(nn.Module):
         encode_3d = encode_3d.mean(dim=[2, 3, 4])
         encode_3d = F.adaptive_avg_pool1d(encode_3d, 256)
         
-        encode_3d = drug_3d_features
+
 
         drug_2d_features = F.adaptive_avg_pool1d(drug_2d_features, 128).squeeze(0)
         x_dict['drug'] = F.adaptive_avg_pool1d(x_dict['drug'], 128).squeeze(0)

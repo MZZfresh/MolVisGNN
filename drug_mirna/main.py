@@ -38,7 +38,7 @@ def set_random_seed(seed):
 
 
 
-def test3(test_data,model,gpu_2d,gpu_data_3d,best_model_state_dict):
+def test(test_data,model,gpu_2d,gpu_data_3d,best_model_state_dict):
     model.eval()
     model.load_state_dict(best_model_state_dict) 
     test_scores = []
@@ -126,13 +126,13 @@ def main():
     seed = args.seed
     set_random_seed(seed)
 
-    npy_files_dir = 'graph/data/ddi_encodedre1'  
+    npy_files_dir = 'dmi_encodedre'  
     npy_files = [os.path.join(npy_files_dir, file) for file in os.listdir(npy_files_dir) if file.endswith('.npy')]  
     gpu_data_3d = load_npy_to_gpu(npy_files, device) 
 
-    gpu_1d = lode1d_to_gpu('graph/data/drug_1d_features.csv',device=device)
-    gpu_2d = lode1d_to_gpu('graph/data/128_2d.csv',device=device)
-    mirna_1d_feature = load_mirna_features('graph/data/kmer_features.csv',device=device)   
+    gpu_1d = lode1d_to_gpu('drug_1d_features.csv',device=device)
+    gpu_2d = lode1d_to_gpu('128_2d.csv',device=device)
+    mirna_1d_feature = load_mirna_features('kmer_features.csv',device=device)   
 
 
     train_data, val_data, test_data= get_graph(gpu_1d,mirna_1d_feature)
@@ -163,20 +163,16 @@ def main():
         drug_3d_features = get_drug_features3d(train_data['drug'].node_idx.tolist(),gpu_data_3d)
         out = model(train_data.x_dict, train_data.edge_index_dict,drug_2d_features,drug_3d_features)
         
-        # out = model(batch.x_dict, batch.edge_index_dict,drug_3d_features
         loss,scores, labels,teain_edge,_ = model.compute_loss(out, train_data)
 
-        # loss,scores, labels = model.compute_loss_no3d(out, batch.edge_index_dict)
+
         optimizer.zero_grad()
 
-        # auc,aupr,accuracy,precision,recall,f1 = model.test(scores, labels)
-        # print(loss,auc,aupr,accuracy,precision,recall,f1)
+
 
         loss.backward()
 
-        # for name, param in model.named_parameters():
-        #     if "aaa" in name and param.grad is not None:
-        #         print(name, param.grad.norm())
+
 
 
         optimizer.step()
@@ -188,89 +184,37 @@ def main():
             print(epoch)
             
             model.eval()
-            # torch.cuda.empty_cache()  # 清除训练阶段的缓存
+            with torch.no_grad:
+                drug_2d_features_val = get_drug_2d_features2(val_data['drug'].node_idx.tolist(), gpu_2d).to(device)
+                drug_3d_features_val = get_drug_features3d(val_data['drug'].node_idx.tolist(), gpu_data_3d).to(device)
 
-            drug_2d_features_val = get_drug_2d_features2(val_data['drug'].node_idx.tolist(), gpu_2d).to(device)
-            drug_3d_features_val = get_drug_features3d(val_data['drug'].node_idx.tolist(), gpu_data_3d).to(device)
+                out_val = model(val_data.x_dict, val_data.edge_index_dict,
+                                            drug_2d_features_val, drug_3d_features_val)
 
-            out_val = model(val_data.x_dict, val_data.edge_index_dict,
-                                        drug_2d_features_val, drug_3d_features_val)
+                val_loss,val_scores, val_labels,edge,t= model.compute_loss(out_val, val_data)
 
-            val_loss,val_scores, val_labels,edge,t= model.compute_loss(out_val, val_data)
-
- 
-            if (epoch) % 50 == 0:
-                t_cpu = t.detach().cpu().numpy()
-                labels_cpu = val_labels.detach().cpu().numpy()
-
-                # ===== 🎯 平衡采样每类500个 =====
-                idx_pos = np.where(labels_cpu == 1)[0]
-                idx_neg = np.where(labels_cpu == 0)[0]
-
-                n_samples = min(500, len(idx_pos), len(idx_neg))  # 防止不足500的情况
-
-                selected_pos = np.random.choice(idx_pos, n_samples, replace=False)
-                selected_neg = np.random.choice(idx_neg, n_samples, replace=False)
-                selected_idx = np.concatenate([selected_pos, selected_neg])
-
-                t_sample = t_cpu[selected_idx]
-                labels_sample = labels_cpu[selected_idx]
-
-                # ===== 🧠 t-SNE 降维 =====
-                tsne = TSNE(n_components=2, random_state=42, perplexity=15, n_iter=1000)
-                t_tsne = tsne.fit_transform(t_sample)
-
-                os.makedirs("graph/tsne", exist_ok=True)
-
-                plt.figure(figsize=(6, 6))
-                colors = {0: 'blue', 1: 'red'}
-                labels_text = {0: 'Negative', 1: 'Positive'}
-
-                for label in [0, 1]:
-                    idx = labels_sample == label
-                    plt.scatter(
-                        t_tsne[idx, 0],
-                        t_tsne[idx, 1],
-                        label=labels_text[label],
-                        color=colors[label],
-                        s=20,
-                        alpha=0.7
-                    )
-
-                plt.legend()
-                plt.title(f"t-SNE (Epoch {epoch + 1})")
-                plt.tight_layout()
-                plt.grid(True)
-                plt.savefig(f"graph/tsne/epoch{epoch + 1}.png", dpi=300)
-                plt.close()
+                auc_val,aupr_val,accuracy_val,precision_val,recall_val ,f1_val= model.test(val_scores, val_labels)
 
 
-            auc_val,aupr_val,accuracy_val,precision_val,recall_val ,f1_val= model.test(val_scores, val_labels)
+                if val_loss < best_auc:
+                    best_auc = val_loss
+                    best_model_state_dict = model.state_dict()
+                    # torch.save(best_model_state_dict, 'graph/model_path/Auto_best_model_ronghe_model.pth')
+                    # torch.save(model, 'graph/model_path/Auto_best_model_ronghe.pth')
+
+                results = {
+                    "avg_val_auc": [auc_val],
+                    "avg_val_aupr": [aupr_val],
+                    "avg_val_accuracy": [accuracy_val],
+                    "avg_val_precision": [precision_val],
+                    "avg_val_recall": [recall_val],
+                    "avg_val_f1": [f1_val],
+                }
+                df = pd.DataFrame(results)
+                print(results)
 
 
-            if val_loss < best_auc:
-                best_auc = val_loss
-                best_model_state_dict = model.state_dict()
-                # torch.save(best_model_state_dict, 'graph/model_path/Auto_best_model_ronghe_model.pth')
-                # torch.save(model, 'graph/model_path/Auto_best_model_ronghe.pth')
-
-            results = {
-                "avg_val_auc": [auc_val],
-                "avg_val_aupr": [aupr_val],
-                "avg_val_accuracy": [accuracy_val],
-                "avg_val_precision": [precision_val],
-                "avg_val_recall": [recall_val],
-                "avg_val_f1": [f1_val],
-            }
-            df = pd.DataFrame(results)
-
-
-            # 将 DataFrame 保存到 CSV 文件中
-            df.to_csv("graph/val_result.csv", mode="a", header=not pd.io.common.file_exists("graph/val_result.csv"), index=False)
-            # df.to_csv("val_result_TT.csv", mode="a", header=not pd.io.common.file_exists("val_result_TT.csv"), index=False)
-            # df.to_csv("val_result_macc.csv", mode="a", header=not pd.io.common.file_exists("val_result_macc.csv"), index=False)
-
-    test3(test_data,model,gpu_2d,gpu_data_3d,best_model_state_dict)
+    test(test_data,model,gpu_2d,gpu_data_3d,best_model_state_dict)
 
 main()
 

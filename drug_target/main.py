@@ -106,7 +106,7 @@ def set_random_seed(seed):
 def main():
     seed = args.seed
     set_random_seed(seed)
-    npy_files_dir = 'ddi_encoded'  
+    npy_files_dir = 'dti_encoded'  
     npy_files = [os.path.join(npy_files_dir, file) for file in os.listdir(npy_files_dir) if file.endswith('.npy')]  
     gpu_data_3d = load_npy_to_gpu(npy_files, device) 
 

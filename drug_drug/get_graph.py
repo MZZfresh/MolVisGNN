@@ -14,16 +14,8 @@ from utiles import *
 
 
 
-def check_label_balance(train_data, val_data, test_data):
-    for name, data in zip(["Train", "Validation", "Test"], [train_data, val_data, test_data]):
-        labels = data.edge_label.cpu().numpy()
-        pos = (labels == 1).sum()
-        neg = (labels == 0).sum()
-        print(f"{name} set: Positive={pos}, Negative={neg}, Ratio={pos / (neg + 1e-6):.2f}")
-
-
 def get_graph():
-    edge = pd.read_csv('graph_DDI/data/ddis.csv')
+    edge = pd.read_csv('ddis.csv')
     edges = edge[['d1', 'd2']].values
     all_nodes = list(set([drug for edge_pair in edges for drug in edge_pair]))
     node_to_idx = {node: idx for idx, node in enumerate(all_nodes)}
@@ -35,7 +27,7 @@ def get_graph():
     transform = RandomLinkSplit(num_val=0.05,num_test=0.1,is_undirected=False,disjoint_train_ratio=0)
     train_data, val_data, test_data = transform(graph)
     mapping_df = pd.DataFrame(list(idx_to_node.items()), columns=['index', 'drug_name'])
-    mapping_df.to_csv('graph_DDI/data/index_to_drug_name.csv', index=False)
+    mapping_df.to_csv('index_to_drug_name.csv', index=False)
     return train_data, val_data, test_data, idx_to_node
 
 

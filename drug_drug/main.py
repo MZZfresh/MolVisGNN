@@ -75,7 +75,7 @@ def get_drug_features3d(node_idxs, idx_to_node, drug_features_dict):
 def test(model, gpu_1d, gpu_2d, gpu_data_3d, best_model_state_dict):
     model.eval()
     model.load_state_dict(best_model_state_dict) 
-    test_graph, idx_to_node, node_to_idx = get_test_graph_for_db00619()
+    test_graph, idx_to_node, node_to_idx = get_graph()
 
     with torch.no_grad():
         # 获取药物特征
@@ -84,9 +84,6 @@ def test(model, gpu_1d, gpu_2d, gpu_data_3d, best_model_state_dict):
         drug_3d_features_val = get_drug_features3d(test_graph.node_idx, idx_to_node, gpu_data_3d)
         out_val = model(test_graph, drug_1d_features_val, drug_2d_features_val, drug_3d_features_val)
     return 0  
-
-
-
 
 
 
@@ -103,7 +100,7 @@ def set_random_seed(seed):
 def main():
     seed = args.seed
     set_random_seed(seed)
-    npy_files_dir = 'graph_DDI/data/ddi_encodedre1' 
+    npy_files_dir = 'ddi_encodedre' 
     npy_files = [os.path.join(npy_files_dir, file) for file in os.listdir(npy_files_dir) if file.endswith('.npy')]  
     gpu_data_3d = load_npy_to_gpu(npy_files, device) 
     gpu_1d = lode1d_to_gpu('graph_DDI/data/drug_1d_fingerprints.csv',device=device)

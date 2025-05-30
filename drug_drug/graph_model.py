@@ -100,61 +100,6 @@ class gate(nn.Module):
 
 
 
-class GateHead(nn.Module):
-    def __init__(self, in_dim=256, negative_slope=0.2):
-        super(GateHead, self).__init__()
-
-        self.lin1_a = nn.Linear(in_dim, 128)
-        self.lin2_a = nn.Linear(128,    64)
-        self.lin3_a = nn.Linear(64,     32)
-
-        self.lin1_b = nn.Linear(in_dim, 128)
-        self.lin2_b = nn.Linear(128,    64)
-        self.lin3_b = nn.Linear(64,     32)
-
-        self.lin1_c = nn.Linear(in_dim, 128)
-        self.lin2_c = nn.Linear(128,    64)
-        self.lin3_c = nn.Linear(64,     32)
-        self.input_norm = nn.LayerNorm(in_dim)
-
-        self.act = nn.LeakyReLU(negative_slope)
-        self.pool = nn.AdaptiveAvgPool1d(1)
-        self.softmax = nn.Softmax(dim=1)
-    def _init_weights(self, negative_slope):
-        for m in self.modules():
-            if isinstance(m, nn.Linear):
-
-                nn.init.kaiming_uniform_(
-                    m.weight,
-                    a=negative_slope,
-                    nonlinearity='leaky_relu'
-                )
-                nn.init.zeros_(m.bias)
-    def forward(self, x1, x2, x3):
-        eps = 1e-6
-        x1 = (x1 - x1.mean(dim=1,keepdim=True)) / (x1.std(dim=1,keepdim=True) + eps)
-        x2 = (x2 - x2.mean(dim=1,keepdim=True)) / (x2.std(dim=1,keepdim=True) + eps)
-        x3 = (x3 - x3.mean(dim=1,keepdim=True)) / (x3.std(dim=1,keepdim=True) + eps)
-
-        a = self.act(self.lin1_a(x1))
-        a = self.act(self.lin2_a(a))
-        a = self.act(self.lin3_a(a))
-        a = self.pool(a.unsqueeze(1)).squeeze(1)
-
-
-        b = self.act(self.lin1_b(x2))
-        b = self.act(self.lin2_b(b))
-        b = self.act(self.lin3_b(b))
-        b = self.pool(b.unsqueeze(1)).squeeze(1)
-
-        c = self.act(self.lin1_c(x3))
-        c = self.act(self.lin2_c(c))
-        c = self.act(self.lin3_c(c))
-        c = self.pool(c.unsqueeze(1)).squeeze(1)
-
-        logits = torch.cat([a, b, c], dim=1)  # [B, 3]
-        weights = self.softmax(logits)
-        return weights
 
 
 

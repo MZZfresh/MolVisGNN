@@ -8,7 +8,7 @@ from config import device
 
 
 def get_mirna_id(mirna_name1):  
-    file_path = 'graph/data/unique_ncrna_miRBase.csv'
+    file_path = 'unique_ncrna_miRBase.csv'
     with open(file_path, 'r') as file:  
         reader = csv.reader(file)
         next(reader)  
@@ -77,7 +77,7 @@ def get_drug_id(drug_name):
 
 
 def get_drug_name(drug_idex):
-    with open('graph/data/drug_mapping.csv', 'r') as file:
+    with open('drug_mapping.csv', 'r') as file:
         reader = csv.reader(file)
         next(reader)   
         for row in reader:  
