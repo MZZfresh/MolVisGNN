@@ -18,3 +18,4 @@ A simple pipeline to generate 3D SDF files from SMILES or PubChem CIDs, render s
 3. **Extract 3D Features**  
    - `3dfeature.py` — load the six-view NumPy arrays and compute spatial visual descriptors for downstream modeling.
 
+The main.py files in the three files can run different tasks.
