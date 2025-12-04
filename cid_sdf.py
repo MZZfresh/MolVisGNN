@@ -13,7 +13,7 @@ def get3d(drug_id,smiles):
             m3d = Chem.AddHs(m)
             AllChem.EmbedMolecule(m3d, randomSeed=10)
             ff = AllChem.MMFFGetMoleculeForceField(m3d, AllChem.MMFFGetMoleculeProperties(m3d, mmffVariant='MMFF94s'))
-            ff.Minimize(maxIts=200)
+            # ff.Minimize(maxIts=200)
             return m3d
             
         else:
@@ -55,3 +55,4 @@ for drug_id, smiles in zip(drugid_list, smiles_list):  # Fixed to zip the drugid
         print(f"无法为CID {drug_id} 生成3D结构")
 
 print("失败的cid : ", faile_cid)
+
