@@ -145,6 +145,7 @@ class mlp_pre(torch.nn.Module):
         self.l2 = torch.nn.Linear(num_hid1, num_hid2)
         self.l3 = torch.nn.Linear(num_hid2, num_hid3)
         self.relu = torch.nn.ReLU()
+        self.relu2 = torch.nn.LeakyReLU(0.2)
         self.sigmoid = torch.nn.Sigmoid()
         self.drop = torch.nn.Dropout(0.5)
         self.nor = torch.nn.BatchNorm1d(32)
@@ -157,13 +158,13 @@ class mlp_pre(torch.nn.Module):
         
         x = self.l1(x)
         x = self.nor(x)
-        x = self.relu(x)
-        x = self.drop(x)
+        x = self.relu2(x)
+        # x = self.drop(x)
         x2 = self.l2(x)
         x = self.l2(x)
-        x = self.drop(x)
+        # x = self.drop(x)
         x = self.nor2(x)
-        x = self.relu(x) 
+        x = self.relu2(x) 
         x = self.l3(x)
 
 
