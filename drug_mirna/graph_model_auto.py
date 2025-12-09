@@ -128,11 +128,6 @@ class gate(nn.Module):
 
 
 
-
-
-
-
-
 class mlp_pre(torch.nn.Module):
     def __init__(self, num_in, num_hid1, num_hid2, num_out):
         super(mlp_pre, self).__init__()
@@ -154,12 +149,30 @@ class mlp_pre(torch.nn.Module):
 
     def forward(self, x):
         x = self.l1(x)
+        x = self.bn1(x)
+        x = self.relu(x)
+        # x = self.dropout(x)
+
         x = self.l2(x)
+        x = self.bn2(x)
+        x = self.relu(x)
+        # x = self.dropout(x)
+
         x = self.l3(x)
+        x = self.bn3(x)
+        x = self.relu(x)
+        # x = self.dropout(x)
         x2 = self.l4(x)
         x = self.l4(x)
+        # x = self.bn4(x)
+        # x = self.relu(x)
+        # x = self.dropout(x)
+
         x = self.classify(x)
         return x,x2
+
+
+
 
 class Directional3DProcessor(nn.Module):
     def __init__(self, in_channels, out_channels):
@@ -217,8 +230,8 @@ class MolVisGNN(nn.Module):
         self.mlp_pre = mlp_pre(64,32,16,1)
         self.lne = torch.nn.Linear(382, 256)
         self.nor = torch.nn.BatchNorm1d(128)
-        self.nor2 = torch.nn.BatchNorm1d(16)
-        self.nor3 = torch.nn.BatchNorm1d(128)
+        self.nor2 = torch.nn.BatchNorm1d(64)
+        self.nor3 = torch.nn.BatchNorm1d(32)
         self.resnet = Conv1dNetwork()
         self.relu = torch.nn.LeakyReLU(0.2)
         self.gate = gate()
@@ -250,17 +263,23 @@ class MolVisGNN(nn.Module):
 
         x_dict['drug'] = F.adaptive_avg_pool1d(x_dict['drug'], 128)
 
-        x_dict['drug'] = self.nor3(x_dict['drug'])
+        x_dict['drug'] = self.nor(x_dict['drug'])
         drug_res = self.resnet(x_dict['drug'])
         x_dict['drug'] = drug_res + x_dict['drug']
         x_dict['drug'] = F.adaptive_avg_pool1d(x_dict['drug'], 256)
         x_dict['miRNA'] = self.lne(x_dict['miRNA'])
         
         x_dict = self.conv1(x_dict, edge_index_dict)
+        for ntype, x in x_dict.items():
+            x_dict[ntype] = self.nor(self.relu(x))
         x_dict = {key:self.relu(x) for key, x in x_dict.items()}
         x_dict = self.conv2(x_dict, edge_index_dict)
+        for ntype, x in x_dict.items():
+            x_dict[ntype] = self.nor2(self.relu(x))
         x_dict = {key:self.relu(x) for key, x in x_dict.items()}
         x_dict = self.conv3(x_dict, edge_index_dict)
+        for ntype, x in x_dict.items():
+            x_dict[ntype] = self.nor3(self.relu(x))
         x_dict = {key:self.relu(x) for key, x in x_dict.items()}
 
 
