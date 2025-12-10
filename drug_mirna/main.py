@@ -138,7 +138,7 @@ def main():
     # train_data, val_data, test_data= get_graph(gpu_1d,mirna_1d_feature)
     train_data, val_data, test_data= get_graph_global_link_pred(gpu_1d,mirna_1d_feature)
 
-    model = zhangzimai()
+    model = MolVisGNN()
 
     optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=args.wd)
     scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=100, gamma=0.5)
