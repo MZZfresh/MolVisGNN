@@ -37,6 +37,85 @@ def get_mirna_data(mirna_1d_feature):
 
 
 
+def get_graph_global_link_pred(gpu_1d, mirna_1d_feature):
+
+    drug_feature = torch.stack(get_drug_data(gpu_1d)).to(device)
+    mirna_feature = torch.stack(get_mirna_data(mirna_1d_feature)).to(device)
+
+    drug_feature = F.adaptive_avg_pool1d(drug_feature.unsqueeze(0), 382).squeeze(0)
+
+
+    edge_df = pd.read_csv('graph/data/5555555edge_index.csv')
+    edge_index = torch.tensor(edge_df.values, dtype=torch.long).t().contiguous().to(device)
+    num_edges = edge_index.size(1)  
+
+
+    perm = torch.randperm(num_edges, device=device)
+    train_size = int(num_edges * 0.7)
+    val_size = int(num_edges * 0.1)
+    
+
+    train_pos_edge = edge_index[:, perm[:train_size]]      
+    val_pos_edge = edge_index[:, perm[train_size:train_size+val_size]] 
+    test_pos_edge = edge_index[:, perm[train_size+val_size:]]          
+
+
+    num_miRNA = mirna_feature.size(0)  
+    num_drug = drug_feature.size(0)    
+
+    all_pos_edges = set([(int(i), int(j)) for i, j in edge_index.t().tolist()])
+
+
+    def make_graph(pos_edge_index, split_name):
+
+
+        g = build_subgraph(mirna_feature, drug_feature, pos_edge_index, num_miRNA, num_drug)
+        num_pos = pos_edge_index.size(1)  
+
+=
+        neg_edges = []
+        while len(neg_edges) < num_pos:
+
+            m_idx = np.random.randint(0, num_miRNA)
+            d_idx = np.random.randint(0, num_drug)
+
+            if (m_idx, d_idx) not in all_pos_edges:
+                neg_edges.append((m_idx, d_idx))
+
+        neg_edge_index = torch.tensor(neg_edges, dtype=torch.long).t().contiguous().to(device)
+
+
+        g['miRNA', 'interacts', 'drug'].edge_label_index = torch.cat([pos_edge_index, neg_edge_index], dim=1)
+        g['miRNA', 'interacts', 'drug'].edge_label = torch.cat([
+            torch.ones(num_pos, device=device),   
+            torch.zeros(num_pos, device=device)  
+        ]).to(torch.float32)
+
+
+        g['drug', 'interacts', 'miRNA'].edge_label_index = torch.cat([
+            pos_edge_index.flip(0),  
+            neg_edge_index.flip(0)   
+        ], dim=1)
+        g['drug', 'interacts', 'miRNA'].edge_label = torch.cat([
+            torch.ones(num_pos, device=device),
+            torch.zeros(num_pos, device=device)
+        ]).to(torch.float32)
+
+
+        g['drug'].node_idx = torch.arange(num_drug, device=device)
+        g['miRNA'].node_idx = torch.arange(num_miRNA, device=device)
+
+
+        iso = check_isolated_nodes(g)
+
+        return g
+
+
+    train_data = make_graph(train_pos_edge, "Train")
+    val_data = make_graph(val_pos_edge, "Val")
+    test_data = make_graph(test_pos_edge, "Test")
+
+    return train_data, val_data, test_data
 
 
 def get_graph(gpu_1d, mirna_1d_feature):
@@ -99,6 +178,7 @@ def get_graph(gpu_1d, mirna_1d_feature):
     train_data, val_data, test_data = transform(graph)
 
     return train_data, val_data, test_data
+
 
 
 
