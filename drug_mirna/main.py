@@ -135,8 +135,8 @@ def main():
     mirna_1d_feature = load_mirna_features('kmer_features.csv',device=device)   
 
 
-    train_data, val_data, test_data= get_graph(gpu_1d,mirna_1d_feature)
-
+    # train_data, val_data, test_data= get_graph(gpu_1d,mirna_1d_feature)
+    train_data, val_data, test_data= get_graph_global_link_pred(gpu_1d,mirna_1d_feature)
 
     model = zhangzimai()
 
