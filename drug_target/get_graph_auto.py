@@ -54,7 +54,8 @@ def get_graph(gpu_1d, Protein_1d_feature):
 
     
     edge = pd.read_csv('relation.csv')
-    
+    edge = edge.drop_duplicates()
+    edge = edge.reset_index(drop=True)
 
     graph = HeteroData()
     
@@ -103,5 +104,6 @@ def get_graph(gpu_1d, Protein_1d_feature):
     train_data, val_data, test_data = transform(graph)
 
     return train_data, val_data, test_data
+
 
 
