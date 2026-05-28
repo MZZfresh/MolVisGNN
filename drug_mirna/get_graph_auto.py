@@ -38,84 +38,95 @@ def get_mirna_data(mirna_1d_feature):
 
 
 def get_graph_global_link_pred(gpu_1d, mirna_1d_feature):
+        # ========== 设备设置 ==========
+    device = torch.device('cuda:1' if torch.cuda.is_available() else 'cpu')
 
+    # ========== 1. 加载节点特征 ==========
     drug_feature = torch.stack(get_drug_data(gpu_1d)).to(device)
     mirna_feature = torch.stack(get_mirna_data(mirna_1d_feature)).to(device)
-
     drug_feature = F.adaptive_avg_pool1d(drug_feature.unsqueeze(0), 382).squeeze(0)
 
-
+    # ========== 2. 加载全局真实边 ==========
     edge_df = pd.read_csv('graph/data/5555555edge_index.csv')
     edge_index = torch.tensor(edge_df.values, dtype=torch.long).t().contiguous().to(device)
-    num_edges = edge_index.size(1)  
+    num_edges = edge_index.size(1)
 
-
+    # ========== 3. 随机划分 训练/验证/测试 正样本 ==========
     perm = torch.randperm(num_edges, device=device)
     train_size = int(num_edges * 0.7)
     val_size = int(num_edges * 0.1)
-    
 
-    train_pos_edge = edge_index[:, perm[:train_size]]      
-    val_pos_edge = edge_index[:, perm[train_size:train_size+val_size]] 
-    test_pos_edge = edge_index[:, perm[train_size+val_size:]]          
+    train_pos_edge = edge_index[:, perm[:train_size]]
+    val_pos_edge = edge_index[:, perm[train_size:train_size+val_size]]
+    test_pos_edge = edge_index[:, perm[train_size+val_size:]]
 
+    # ========== 4. 全局统计 ==========
+    num_miRNA = mirna_feature.size(0)
+    num_drug = drug_feature.size(0)
 
-    num_miRNA = mirna_feature.size(0)  
-    num_drug = drug_feature.size(0)    
+    # 全局所有正边
+    all_pos_edges = set((int(u), int(v)) for u, v in edge_index.t())
 
-    all_pos_edges = set([(int(i), int(j)) for i, j in edge_index.t().tolist()])
+    # 【关键】全局已使用负边（确保三个集合绝不重复）
+    used_neg_edges = set()
 
-
+    # ========== 5. 安全构建单张图函数（独立无泄露） ==========
     def make_graph(pos_edge_index, split_name):
-
-
         g = build_subgraph(mirna_feature, drug_feature, pos_edge_index, num_miRNA, num_drug)
-        num_pos = pos_edge_index.size(1)  
+        num_pos = pos_edge_index.size(1)
 
-=
+        # 当前数据集的正边（防止负采样采到自己）
+        current_pos = set((int(u), int(v)) for u, v in pos_edge_index.t())
+
+        # ========== 安全负采样 ==========
         neg_edges = []
         while len(neg_edges) < num_pos:
+            m = np.random.randint(0, num_miRNA)
+            d = np.random.randint(0, num_drug)
 
-            m_idx = np.random.randint(0, num_miRNA)
-            d_idx = np.random.randint(0, num_drug)
-
-            if (m_idx, d_idx) not in all_pos_edges:
-                neg_edges.append((m_idx, d_idx))
+            if (
+                (m, d) not in all_pos_edges    # 不是真实边
+                and (m, d) not in current_pos  # 不是当前集正边
+                and (m, d) not in used_neg_edges  # 没被任何集用过
+            ):
+                neg_edges.append((m, d))
+                used_neg_edges.add((m, d))
 
         neg_edge_index = torch.tensor(neg_edges, dtype=torch.long).t().contiguous().to(device)
 
-
-        g['miRNA', 'interacts', 'drug'].edge_label_index = torch.cat([pos_edge_index, neg_edge_index], dim=1)
-        g['miRNA', 'interacts', 'drug'].edge_label = torch.cat([
-            torch.ones(num_pos, device=device),   
-            torch.zeros(num_pos, device=device)  
-        ]).to(torch.float32)
-
-
-        g['drug', 'interacts', 'miRNA'].edge_label_index = torch.cat([
-            pos_edge_index.flip(0),  
-            neg_edge_index.flip(0)   
-        ], dim=1)
-        g['drug', 'interacts', 'miRNA'].edge_label = torch.cat([
+        # ========== 拼接边标签 ==========
+        edge_label_index = torch.cat([pos_edge_index, neg_edge_index], dim=1)
+        edge_label = torch.cat([
             torch.ones(num_pos, device=device),
             torch.zeros(num_pos, device=device)
-        ]).to(torch.float32)
+        ]).float()
 
+        # 正向边
+        g['miRNA', 'interacts', 'drug'].edge_label_index = edge_label_index
+        g['miRNA', 'interacts', 'drug'].edge_label = edge_label
 
-        g['drug'].node_idx = torch.arange(num_drug, device=device)
+        # 反向边
+        g['drug', 'interacts', 'miRNA'].edge_label_index = edge_label_index.flip(0)
+        g['drug', 'interacts', 'miRNA'].edge_label = edge_label
+
+        # 节点索引
         g['miRNA'].node_idx = torch.arange(num_miRNA, device=device)
+        g['drug'].node_idx = torch.arange(num_drug, device=device)
 
-
+        # 调试输出
         iso = check_isolated_nodes(g)
+        print(f"[{split_name}] 正样本：{num_pos} | 负样本：{num_pos} | 孤立节点：{iso}")
 
         return g
 
-
+    # ========== 6. 依次构建数据集（负边绝不重复） ==========
     train_data = make_graph(train_pos_edge, "Train")
     val_data = make_graph(val_pos_edge, "Val")
     test_data = make_graph(test_pos_edge, "Test")
 
     return train_data, val_data, test_data
+
+
 
 
 def get_graph(gpu_1d, mirna_1d_feature):
